@@ -121,8 +121,10 @@ npm run dev
 | POST | /api/projects/{id}/shots/reorder | 批量调整镜头顺序 |
 | GET | /api/shots/{shot_id}/assets | 镜头产物列表（场景图 / 视频） |
 | POST | /api/shots/{shot_id}/images/generate | 生成场景图（调用 .env 配置的 ImageProvider） |
+| POST | /api/shots/{shot_id}/images/upload | 上传外部工具生成的场景图（provider=manual） |
 | POST | /api/shots/{shot_id}/images/confirm | 人工确认最新场景图 |
 | POST | /api/shots/{shot_id}/videos/generate | 生成视频（I2V，要求最新场景图已确认） |
+| POST | /api/shots/{shot_id}/videos/upload | 上传外部工具生成的视频（provider=manual） |
 | POST | /api/shots/{shot_id}/videos/confirm | 人工确认最新视频 |
 | GET | /api/system/config | 当前模型配置 |
 | GET | /api/system/check-env | 本地生成环境检查（GPU / 显存 / PyTorch / ComfyUI / 模型就绪） |
@@ -141,6 +143,21 @@ LLM_MODEL=deepseek-chat
 
 当前默认使用本机 Ollama（`http://localhost:11434/v1` + `qwen2.5:3b`）做开发测试。
 更换模型只需改这三个环境变量，业务代码不变。
+
+## 零成本出片（当前默认路径：外部工具 + 人工回传）
+
+本机未安装 ComfyUI 且显存只有 6GB，本地跑 LTX-Video 属超配运行。当前采用零成本人工闭环：
+
+```text
+分镜确认后 → 复制图片 Prompt → 外部图片工具生成场景图 → 下载 → 「上传场景图」→ 确认图片
+           → 复制视频 Prompt → 外部视频工具（免费额度）图生视频 → 下载 mp4 → 「上传视频」→ 播放确认
+```
+
+- 上传的图片/视频走与 API 生成完全相同的 Asset 版本机制（provider=manual），保存到
+  `storage/projects/{pid}/shots/{sid}/images|videos/`，旧版本保留
+- 支持 png/jpg/jpeg/webp 与 mp4/webm/mov
+- 免费/免费额度工具举例：即梦、可灵、海螺等（任选，注意每日免费额度）
+- 以后装好 ComfyUI 后，`.env` 切换 Provider 即可回到全自动路径，前端流程不变
 
 ## 图片 / 视频生成（ComfyUI 本地方案）
 

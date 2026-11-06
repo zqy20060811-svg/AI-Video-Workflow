@@ -106,6 +106,20 @@
               >
                 {{ latestImage[shot.id] ? '重新生成图片' : '生成场景图' }}
               </el-button>
+              <el-upload
+                :show-file-list="false"
+                accept=".png,.jpg,.jpeg,.webp"
+                :http-request="(opt: any) => onUploadImage(shot, opt)"
+              >
+                <el-button size="small" :loading="mediaBusy[shot.id] === 'image'">上传场景图</el-button>
+              </el-upload>
+              <el-button
+                v-if="shot.image_prompt"
+                size="small"
+                @click="copyText(shot.image_prompt, '图片 Prompt')"
+              >
+                {{ copiedLabel === '图片 Prompt' ? '已复制' : '复制图片 Prompt' }}
+              </el-button>
               <el-button
                 v-if="latestImage[shot.id] && latestImage[shot.id].status !== 'confirmed'"
                 size="small"
@@ -131,7 +145,7 @@
               controls
               class="preview-video"
             />
-            <div v-else class="media-placeholder">确认场景图后可生成视频</div>
+            <div v-else class="media-placeholder">确认场景图后可生成视频，或直接上传外部工具生成的视频</div>
             <p v-if="latestVideo[shot.id]" class="media-meta">
               v{{ latestVideo[shot.id].version }} · {{ latestVideo[shot.id].provider || '-' }}
               {{ latestVideo[shot.id].model || '' }}
@@ -146,6 +160,16 @@
               >
                 {{ latestVideo[shot.id] ? '重新生成视频' : '生成视频' }}
               </el-button>
+              <el-button v-if="shot.video_prompt" size="small" @click="copyText(shot.video_prompt, '视频 Prompt')">
+                {{ copiedLabel === '视频 Prompt' ? '已复制' : '复制视频 Prompt' }}
+              </el-button>
+              <el-upload
+                :show-file-list="false"
+                accept=".mp4,.webm,.mov"
+                :http-request="(opt: any) => onUploadVideo(shot, opt)"
+              >
+                <el-button size="small" :loading="mediaBusy[shot.id] === 'video'">上传视频</el-button>
+              </el-upload>
               <el-button
                 v-if="latestVideo[shot.id] && latestVideo[shot.id].status !== 'confirmed'"
                 size="small"
@@ -193,6 +217,8 @@ import {
   generateShotVideo,
   listShotAssets,
   storageUrl,
+  uploadShotImage,
+  uploadShotVideo,
   type Asset
 } from '../api/media'
 
@@ -221,6 +247,54 @@ function showMediaError(e: unknown): void {
   const msg = typeof detail === 'string' && detail ? detail : '操作失败，请重试'
   // 引导类错误文案较长，使用手动关闭的通知
   ElNotification({ title: '生成失败', message: msg, type: 'error', duration: 0 })
+}
+
+const copiedLabel = ref<string | null>(null)
+
+async function copyText(text: string, label: string) {
+  const write = navigator.clipboard?.writeText
+    ? await navigator.clipboard.writeText(text).then(() => true).catch(() => false)
+    : false
+  if (!write) {
+    // 剪贴板 API 不可用时的回退
+    const ta = document.createElement('textarea')
+    ta.value = text
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  copiedLabel.value = label
+  ElMessage({ message: `${label}已复制到剪贴板`, type: 'success', duration: 5000 })
+  setTimeout(() => {
+    if (copiedLabel.value === label) copiedLabel.value = null
+  }, 2000)
+}
+
+async function onUploadImage(shot: Shot, opt: any) {
+  mediaBusy.value[shot.id] = 'image'
+  try {
+    await uploadShotImage(shot.id, opt.file)
+    ElMessage.success('场景图已上传，请查看并确认')
+    await loadShotAssets(shot.id)
+  } catch (e) {
+    showMediaError(e)
+  } finally {
+    mediaBusy.value[shot.id] = null
+  }
+}
+
+async function onUploadVideo(shot: Shot, opt: any) {
+  mediaBusy.value[shot.id] = 'video'
+  try {
+    await uploadShotVideo(shot.id, opt.file)
+    ElMessage.success('视频已上传，请播放预览并确认')
+    await loadShotAssets(shot.id)
+  } catch (e) {
+    showMediaError(e)
+  } finally {
+    mediaBusy.value[shot.id] = null
+  }
 }
 
 async function onGenerateImage(shot: Shot) {

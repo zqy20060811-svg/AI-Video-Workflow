@@ -140,3 +140,32 @@ def confirm_shot_video(db: Session, shot_id: int) -> Asset:
     db.commit()
     db.refresh(latest)
     return latest
+
+
+def register_manual_asset(
+    db: Session,
+    shot: Shot,
+    project: Project,
+    asset_type: str,
+    ext: str,
+    data: bytes,
+    prompt: str | None,
+) -> Asset:
+    """登记外部工具生成、人工上传的图片/视频（provider=manual），复用现有版本机制。"""
+    kind = "images" if asset_type == "scene_image" else "videos"
+    file_path = storage_service.save_generated_file(project.id, shot.id, kind, ext, data)
+    asset = Asset(
+        project_id=project.id,
+        shot_id=shot.id,
+        asset_type=asset_type,
+        file_path=file_path,
+        version=_next_version(db, shot.id, asset_type),
+        status="ready",
+        provider="manual",
+        model="",
+        prompt=prompt,
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return asset

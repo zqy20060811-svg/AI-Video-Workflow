@@ -40,6 +40,18 @@ export function confirmShotVideo(shotId: number) {
   return mediaApi.post<Asset>(`/shots/${shotId}/videos/confirm`)
 }
 
+export function uploadShotImage(shotId: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return mediaApi.post<Asset>(`/shots/${shotId}/images/upload`, form)
+}
+
+export function uploadShotVideo(shotId: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return mediaApi.post<Asset>(`/shots/${shotId}/videos/upload`, form)
+}
+
 export function storageUrl(filePath: string) {
   return `/storage/${filePath.replace(/\\/g, '/')}`
 }
