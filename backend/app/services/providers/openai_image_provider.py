@@ -36,6 +36,7 @@ class OpenAICompatibleImageProvider(BaseImageProvider):
             "prompt": request.prompt,
             "image_size": f"{request.width}x{request.height}",
             "batch_size": 1,
+            # 注：硅基流动 Kolors 强制「AI 生成」水印，watermark=0/False 均实测无效
         }
         headers = {"Authorization": f"Bearer {settings.IMAGE_API_KEY}"}
         base = settings.IMAGE_BASE_URL.rstrip("/")
