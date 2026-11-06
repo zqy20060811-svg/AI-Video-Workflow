@@ -15,15 +15,6 @@ def _get_shot_or_404(shot_id: int, db: Session) -> Shot:
     return shot
 
 
-def _touch_project_reviewing(db: Session, shot: Shot) -> None:
-    """已确认的分镜被修改后，项目回到审核中状态，该镜头回到 draft。"""
-    project = db.query(Project).filter(Project.id == shot.project_id).first()
-    if project and project.status == "storyboard_confirmed":
-        project.status = "storyboard_reviewing"
-    if shot.status == "confirmed":
-        shot.status = "draft"
-
-
 @router.get("/api/projects/{project_id}/shots", response_model=list[ShotRead])
 def list_shots(project_id: int, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -74,7 +65,7 @@ def update_shot(shot_id: int, payload: ShotUpdate, db: Session = Depends(get_db)
         if target:
             target.shot_no = old_no
 
-    _touch_project_reviewing(db, shot)
+    # 个人工作流：已确认分镜修改后保持确认状态，不回退审核
     db.commit()
     db.refresh(shot)
     return shot
