@@ -13,6 +13,7 @@ from app.services.providers.none_provider import (
     NoneVideoProvider,
     VIDEO_NOT_CONFIGURED_MSG,
 )
+from app.services.providers.openai_image_provider import OpenAICompatibleImageProvider
 from app.services.providers.pollinations_provider import PollinationsImageProvider
 
 __all__ = [
@@ -37,8 +38,11 @@ def get_image_provider() -> BaseImageProvider:
         return ComfyUIImageProvider()
     if name == "pollinations":
         return PollinationsImageProvider()
+    if name in ("openai_compatible", "openai-compatible"):
+        return OpenAICompatibleImageProvider()
     raise ProviderError(
-        f"未知的 IMAGE_PROVIDER：{settings.IMAGE_PROVIDER}（支持：none / comfyui / pollinations）"
+        f"未知的 IMAGE_PROVIDER：{settings.IMAGE_PROVIDER}"
+        "（支持：none / comfyui / pollinations / openai_compatible）"
     )
 
 

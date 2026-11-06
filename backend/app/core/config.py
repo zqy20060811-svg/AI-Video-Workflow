@@ -23,9 +23,12 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0.7
 
-    # 图片生成配置：none（未配置）| comfyui
+    # 图片生成配置：none（未配置）| comfyui | pollinations | openai_compatible
     IMAGE_PROVIDER: str = "none"
     IMAGE_MODEL: str = ""
+    # openai_compatible 图片 API（硅基流动 / OpenAI / 其他兼容服务）
+    IMAGE_BASE_URL: str = "https://api.siliconflow.cn/v1"
+    IMAGE_API_KEY: str = ""
 
     # 视频生成配置：none（未配置）| comfyui
     VIDEO_PROVIDER: str = "none"
