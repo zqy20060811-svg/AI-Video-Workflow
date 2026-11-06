@@ -13,6 +13,7 @@ from app.services.providers.none_provider import (
     NoneVideoProvider,
     VIDEO_NOT_CONFIGURED_MSG,
 )
+from app.services.providers.pollinations_provider import PollinationsImageProvider
 
 __all__ = [
     "BaseImageProvider",
@@ -34,7 +35,11 @@ def get_image_provider() -> BaseImageProvider:
         raise ProviderError(IMAGE_NOT_CONFIGURED_MSG)
     if name == "comfyui":
         return ComfyUIImageProvider()
-    raise ProviderError(f"未知的 IMAGE_PROVIDER：{settings.IMAGE_PROVIDER}（支持：none / comfyui）")
+    if name == "pollinations":
+        return PollinationsImageProvider()
+    raise ProviderError(
+        f"未知的 IMAGE_PROVIDER：{settings.IMAGE_PROVIDER}（支持：none / comfyui / pollinations）"
+    )
 
 
 def get_video_provider() -> BaseVideoProvider:

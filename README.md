@@ -159,13 +159,21 @@ LLM_MODEL=deepseek-chat
 - 免费/免费额度工具举例：即梦、可灵、海螺等（任选，注意每日免费额度）
 - 以后装好 ComfyUI 后，`.env` 切换 Provider 即可回到全自动路径，前端流程不变
 
-## 图片 / 视频生成（ComfyUI 本地方案）
+## 图片 / 视频生成（Provider 由 .env 决定）
+
+### 图片：三选一
+
+| Provider | 成本 | 说明 |
+| --- | --- | --- |
+| `pollinations`（当前默认） | **免费**，无需 Key/注册 | Flux 模型，直接 HTTP 调用；匿名请求右下角带 pollinations 水印 |
+| `comfyui` | 免费 | 本地 ComfyUI + SD1.5，需安装（见下文），无水印 |
+| `manual` | 免费 | 外部工具生成后「上传场景图」，无水印 |
 
 模型选择完全由 `.env` 决定，业务代码通过 Provider 工厂获取实现，不耦合任何具体模型：
 
 ```env
-IMAGE_PROVIDER=comfyui          # none = 未配置（前端给出引导）
-IMAGE_MODEL=sd15.safetensors    # ComfyUI models/checkpoints/ 中的文件名
+IMAGE_PROVIDER=pollinations     # none / comfyui / pollinations
+IMAGE_MODEL=flux                # pollinations 模型名；comfyui 时为 checkpoint 文件名
 VIDEO_PROVIDER=comfyui
 VIDEO_MODEL=ltxv-2b-0.9.6-distilled-fp8.safetensors   # ComfyUI models/unet/
 VIDEO_CLIP_MODEL=t5xxl_fp16.safetensors               # ComfyUI models/clip/

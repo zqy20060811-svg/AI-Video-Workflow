@@ -47,7 +47,7 @@
           :closable="false"
           show-icon
           class="hint"
-          title="当前未配置图片生成模型。你可以：1. 本地安装 ComfyUI 并在 .env 设置 IMAGE_PROVIDER=comfyui、IMAGE_MODEL=模型名；2. 配置其他图片模型 API。"
+          title="当前未配置图片生成模型。你可以：1. 在 .env 设置 IMAGE_PROVIDER=pollinations（免费、无需 Key，推荐）；2. 本地安装 ComfyUI 并设置 IMAGE_PROVIDER=comfyui；3. 使用外部工具生成后手动上传。"
         />
         <p class="hint">配置项：IMAGE_PROVIDER / IMAGE_MODEL / COMFYUI_URL</p>
       </el-card>
