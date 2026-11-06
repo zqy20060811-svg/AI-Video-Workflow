@@ -46,6 +46,22 @@ def _next_version(db: Session, shot_id: int, asset_type: str) -> int:
     return (latest.version + 1) if latest else 1
 
 
+def _character_hint(project: Project) -> str:
+    """把项目角色三视图设定拼进图片 prompt，约束生成时的人物外形一致性。"""
+    hints = []
+    for c in project.characters:
+        if not (c.description or c.name):
+            continue
+        views = "（已有三视图参考：正面/侧面/背面）" if c.front_image else ""
+        hints.append(f"- {c.name}：{c.description or ''}{views}")
+    if not hints:
+        return ""
+    return (
+        "\n\nCharacter consistency（画面中人物必须严格遵守以下角色设定，"
+        "发型/服装/体型在各镜头中保持一致）：\n" + "\n".join(hints)
+    )
+
+
 def generate_scene_image(db: Session, shot: Shot, project: Project) -> Asset:
     """为镜头生成场景图。provider 未配置时抛 ProviderError（带用户引导）。"""
     if not shot.image_prompt or not shot.image_prompt.strip():
@@ -53,7 +69,8 @@ def generate_scene_image(db: Session, shot: Shot, project: Project) -> Asset:
 
     provider = get_image_provider()
     width, height = size_for_aspect(project.aspect_ratio)
-    data = provider.generate_image(ImageRequest(prompt=shot.image_prompt, width=width, height=height))
+    full_prompt = shot.image_prompt + _character_hint(project)
+    data = provider.generate_image(ImageRequest(prompt=full_prompt, width=width, height=height))
 
     file_path = storage_service.save_generated_file(
         project.id, shot.id, "images", ".png", data
@@ -67,7 +84,7 @@ def generate_scene_image(db: Session, shot: Shot, project: Project) -> Asset:
         status="ready",
         provider=provider.name,
         model=provider.model,
-        prompt=shot.image_prompt,
+        prompt=full_prompt,
     )
     db.add(asset)
     db.commit()
