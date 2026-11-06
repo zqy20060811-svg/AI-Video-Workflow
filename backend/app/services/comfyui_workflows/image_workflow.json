@@ -1,0 +1,42 @@
+{
+  "_comment": "ComfyUI 文生图模板（默认 SD1.5）。占位符：__PROMPT__ __NEGATIVE_PROMPT__ __WIDTH__ __HEIGHT__ __SEED__ __MODEL__。可用 ComfyUI 导出的 workflow API JSON 替换本文件（保存为 image_workflow.json）。",
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "__MODEL__" }
+  },
+  "2": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "__PROMPT__", "clip": ["1", 0] }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "__NEGATIVE_PROMPT__", "clip": ["1", 0] }
+  },
+  "4": {
+    "class_type": "EmptyLatentImage",
+    "inputs": { "width": "__WIDTH__", "height": "__HEIGHT__", "batch_size": 1 }
+  },
+  "5": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": "__SEED__",
+      "steps": 20,
+      "cfg": 7.5,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0,
+      "model": ["1", 0],
+      "positive": ["2", 0],
+      "negative": ["3", 0],
+      "latent_image": ["4", 0]
+    }
+  },
+  "6": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["5", 0], "vae": ["1", 2] }
+  },
+  "7": {
+    "class_type": "SaveImage",
+    "inputs": { "filename_prefix": "avw_scene", "images": ["6", 0] }
+  }
+}

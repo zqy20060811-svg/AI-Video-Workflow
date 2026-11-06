@@ -70,9 +70,95 @@
           </el-button>
           <el-popconfirm title="确定删除该分镜？" @confirm="onDeleteShot(shot)">
             <template #reference>
-              <el-button type="danger" size="plain">删除</el-button>
+              <el-button plain type="danger" size="small">删除</el-button>
             </template>
           </el-popconfirm>
+        </div>
+
+        <el-divider content-position="left">生成与确认</el-divider>
+        <div class="media-grid">
+          <div class="media-box">
+            <div class="media-title">
+              场景图
+              <el-tag v-if="latestImage[shot.id]" size="small" :type="latestImage[shot.id].status === 'confirmed' ? 'success' : 'warning'">
+                {{ latestImage[shot.id].status === 'confirmed' ? '已确认' : '待确认' }}
+              </el-tag>
+            </div>
+            <el-image
+              v-if="latestImage[shot.id]"
+              :src="storageUrl(latestImage[shot.id].file_path)"
+              :preview-src-list="[storageUrl(latestImage[shot.id].file_path)]"
+              fit="contain"
+              class="preview-img"
+            />
+            <div v-else class="media-placeholder">尚未生成场景图</div>
+            <p v-if="latestImage[shot.id]" class="media-meta">
+              v{{ latestImage[shot.id].version }} · {{ latestImage[shot.id].provider || '-' }}
+              {{ latestImage[shot.id].model || '' }}
+            </p>
+            <div class="media-actions">
+              <el-button
+                size="small"
+                type="primary"
+                :loading="mediaBusy[shot.id] === 'image'"
+                :disabled="shot.status !== 'confirmed'"
+                @click="onGenerateImage(shot)"
+              >
+                {{ latestImage[shot.id] ? '重新生成图片' : '生成场景图' }}
+              </el-button>
+              <el-button
+                v-if="latestImage[shot.id] && latestImage[shot.id].status !== 'confirmed'"
+                size="small"
+                type="success"
+                @click="onConfirmImage(shot)"
+              >
+                确认图片
+              </el-button>
+            </div>
+            <p v-if="shot.status !== 'confirmed'" class="media-hint">分镜确认后才能生成图片</p>
+          </div>
+
+          <div class="media-box">
+            <div class="media-title">
+              视频
+              <el-tag v-if="latestVideo[shot.id]" size="small" :type="latestVideo[shot.id].status === 'confirmed' ? 'success' : 'warning'">
+                {{ latestVideo[shot.id].status === 'confirmed' ? '已确认' : '待确认' }}
+              </el-tag>
+            </div>
+            <video
+              v-if="latestVideo[shot.id]"
+              :src="storageUrl(latestVideo[shot.id].file_path)"
+              controls
+              class="preview-video"
+            />
+            <div v-else class="media-placeholder">确认场景图后可生成视频</div>
+            <p v-if="latestVideo[shot.id]" class="media-meta">
+              v{{ latestVideo[shot.id].version }} · {{ latestVideo[shot.id].provider || '-' }}
+              {{ latestVideo[shot.id].model || '' }}
+            </p>
+            <div class="media-actions">
+              <el-button
+                size="small"
+                type="primary"
+                :loading="mediaBusy[shot.id] === 'video'"
+                :disabled="shot.status !== 'confirmed' || !latestImage[shot.id] || latestImage[shot.id].status !== 'confirmed'"
+                @click="onGenerateVideo(shot)"
+              >
+                {{ latestVideo[shot.id] ? '重新生成视频' : '生成视频' }}
+              </el-button>
+              <el-button
+                v-if="latestVideo[shot.id] && latestVideo[shot.id].status !== 'confirmed'"
+                size="small"
+                type="success"
+                @click="onConfirmVideo(shot)"
+              >
+                确认视频
+              </el-button>
+            </div>
+            <p v-if="latestImage[shot.id] && latestImage[shot.id].status !== 'confirmed'" class="media-hint">
+              请先确认场景图，再生成视频
+            </p>
+          </div>
         </div>
       </el-card>
     </div>
@@ -89,7 +175,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import {
   confirmStoryboard,
   createShot,
@@ -100,6 +186,15 @@ import {
   type ProjectDetail,
   type Shot
 } from '../api/projects'
+import {
+  confirmSceneImage,
+  confirmShotVideo,
+  generateSceneImage,
+  generateShotVideo,
+  listShotAssets,
+  storageUrl,
+  type Asset
+} from '../api/media'
 
 const route = useRoute()
 const router = useRouter()
@@ -109,6 +204,70 @@ const loading = ref(false)
 const savingId = ref<number | null>(null)
 const adding = ref(false)
 const confirming = ref(false)
+
+// 每个 Shot 的最新图片 / 视频 Asset 与操作状态
+const latestImage = ref<Record<number, Asset | undefined>>({})
+const latestVideo = ref<Record<number, Asset | undefined>>({})
+const mediaBusy = ref<Record<number, string | null>>({})
+
+async function loadShotAssets(shotId: number) {
+  const list = (await listShotAssets(shotId)).data
+  latestImage.value[shotId] = list.find((a) => a.asset_type === 'scene_image')
+  latestVideo.value[shotId] = list.find((a) => a.asset_type === 'shot_video')
+}
+
+function showMediaError(e: unknown): void {
+  const detail = (e as any)?.response?.data?.detail
+  const msg = typeof detail === 'string' && detail ? detail : '操作失败，请重试'
+  // 引导类错误文案较长，使用手动关闭的通知
+  ElNotification({ title: '生成失败', message: msg, type: 'error', duration: 0 })
+}
+
+async function onGenerateImage(shot: Shot) {
+  mediaBusy.value[shot.id] = 'image'
+  try {
+    await generateSceneImage(shot.id)
+    ElMessage.success('场景图已生成，请查看并确认')
+    await loadShotAssets(shot.id)
+  } catch (e) {
+    showMediaError(e)
+  } finally {
+    mediaBusy.value[shot.id] = null
+  }
+}
+
+async function onConfirmImage(shot: Shot) {
+  try {
+    await confirmSceneImage(shot.id)
+    ElMessage.success('场景图已确认，可以生成视频')
+    await loadShotAssets(shot.id)
+  } catch (e) {
+    showMediaError(e)
+  }
+}
+
+async function onGenerateVideo(shot: Shot) {
+  mediaBusy.value[shot.id] = 'video'
+  try {
+    await generateShotVideo(shot.id)
+    ElMessage.success('视频已生成，请播放预览并确认')
+    await loadShotAssets(shot.id)
+  } catch (e) {
+    showMediaError(e)
+  } finally {
+    mediaBusy.value[shot.id] = null
+  }
+}
+
+async function onConfirmVideo(shot: Shot) {
+  try {
+    await confirmShotVideo(shot.id)
+    ElMessage.success('视频已确认，该镜头完成')
+    await loadShotAssets(shot.id)
+  } catch (e) {
+    showMediaError(e)
+  }
+}
 
 // characters JSON 数组与逗号分隔文本的双向绑定辅助
 const charactersText = ref<string[]>([])
@@ -150,6 +309,7 @@ async function load() {
     project.value = res.data
     shots.value = [...res.data.shots].sort((a, b) => a.shot_no - b.shot_no)
     syncCharactersText()
+    await Promise.all(shots.value.map((s) => loadShotAssets(s.id).catch(() => undefined)))
   } finally {
     loading.value = false
   }
@@ -265,5 +425,58 @@ onMounted(load)
   margin: 24px 0;
   display: flex;
   gap: 12px;
+}
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.media-box {
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.media-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.preview-img {
+  width: 100%;
+  max-height: 260px;
+  border-radius: 4px;
+}
+.preview-video {
+  width: 100%;
+  max-height: 260px;
+  border-radius: 4px;
+  background: #000;
+}
+.media-placeholder {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c0c4cc;
+  background: #fafafa;
+  border-radius: 4px;
+}
+.media-meta {
+  margin: 0;
+  color: #909399;
+  font-size: 12px;
+}
+.media-actions {
+  display: flex;
+  gap: 8px;
+}
+.media-hint {
+  margin: 0;
+  color: #e6a23c;
+  font-size: 12px;
 }
 </style>

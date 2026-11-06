@@ -2,8 +2,9 @@
 
 AI 短视频 / 影视分镜生产工作流（Human-in-the-loop）。
 
-**当前阶段：故事 → AI 分析 → AI 分镜 → 人工修改 → 确认分镜（完整闭环已实现）。**
-尚未实现：图片生成、视频生成、剪映自动化等后续阶段。
+**当前阶段：故事 → AI 分析 → AI 分镜 → 人工修改 → 确认分镜 → 生成场景图 → 确认图片 → 生成视频 → 确认视频（工作流代码已完整；图片/视频生成依赖外部引擎 ComfyUI，未配置时前端会给出引导）。**
+
+尚未实现：多镜头批量出片、自动剪辑、剪映自动化等后续阶段。
 
 ## 技术栈
 
@@ -14,6 +15,7 @@ AI 短视频 / 影视分镜生产工作流（Human-in-the-loop）。
 | 前端 | Vue 3 / Vite / TypeScript / Element Plus / Vue Router / Pinia / Axios |
 | 存储 | 本地 `storage/` 目录（后续接 MinIO / OSS） |
 | LLM | OpenAI 兼容 API（当前本地 Ollama `qwen2.5:3b`，可无缝切换 DeepSeek / OpenAI） |
+| 图片/视频生成 | Provider 抽象（`none` / `comfyui`），业务代码不耦合具体模型，全部由 `.env` 决定 |
 | 工作流 | LangGraph：story_analysis → storyboard_generation → human_review（人工确认） |
 
 ## 目录结构
@@ -91,10 +93,14 @@ npm run dev
 3. 点击「生成分镜」→ AI 分析故事 + 生成分镜（等待 1-3 分钟）
 4. 自动跳转分镜管理页 → 查看/修改/新增/删除/排序分镜
 5. 点击「确认全部分镜」
+6. 在已确认的 Shot 卡片「生成与确认」区：生成场景图 → 查看大图 → 确认图片
+7. 确认图片后：生成视频 → 播放器预览 → 确认视频（该 Shot 完成）
 ```
 
 项目状态：draft → story_analyzing → storyboard_generated → storyboard_reviewing → storyboard_confirmed。
 已确认的分镜再次修改会自动回到 storyboard_reviewing / draft 状态。
+
+图片 / 视频必须人工确认：重新生成会保留旧文件（version 递增）；视频生成强制要求最新场景图已确认。
 
 ## 当前可用 API
 
@@ -113,8 +119,15 @@ npm run dev
 | GET/POST | /api/projects/{id}/shots | 镜头列表 / 手动新增镜头 |
 | GET/PUT/DELETE | /api/shots/{shot_id} | 单个镜头查询 / 修改（含调整顺序）/ 删除 |
 | POST | /api/projects/{id}/shots/reorder | 批量调整镜头顺序 |
+| GET | /api/shots/{shot_id}/assets | 镜头产物列表（场景图 / 视频） |
+| POST | /api/shots/{shot_id}/images/generate | 生成场景图（调用 .env 配置的 ImageProvider） |
+| POST | /api/shots/{shot_id}/images/confirm | 人工确认最新场景图 |
+| POST | /api/shots/{shot_id}/videos/generate | 生成视频（I2V，要求最新场景图已确认） |
+| POST | /api/shots/{shot_id}/videos/confirm | 人工确认最新视频 |
+| GET | /api/system/config | 当前模型配置 |
+| GET | /api/system/check-env | 本地生成环境检查（GPU / 显存 / PyTorch / ComfyUI / 模型就绪） |
 
-角色图片保存至 `storage/projects/{project_id}/characters/`，数据库仅存相对路径。
+角色图片保存至 `storage/projects/{project_id}/characters/`，场景图 `.../shots/{shot_id}/images/`，视频 `.../shots/{shot_id}/videos/`，数据库仅存相对路径；产物同时通过 `/storage/` 静态目录访问。
 
 ## LLM 配置
 
@@ -129,6 +142,48 @@ LLM_MODEL=deepseek-chat
 当前默认使用本机 Ollama（`http://localhost:11434/v1` + `qwen2.5:3b`）做开发测试。
 更换模型只需改这三个环境变量，业务代码不变。
 
+## 图片 / 视频生成（ComfyUI 本地方案）
+
+模型选择完全由 `.env` 决定，业务代码通过 Provider 工厂获取实现，不耦合任何具体模型：
+
+```env
+IMAGE_PROVIDER=comfyui          # none = 未配置（前端给出引导）
+IMAGE_MODEL=sd15.safetensors    # ComfyUI models/checkpoints/ 中的文件名
+VIDEO_PROVIDER=comfyui
+VIDEO_MODEL=ltxv-2b-0.9.6-distilled-fp8.safetensors   # ComfyUI models/unet/
+VIDEO_CLIP_MODEL=t5xxl_fp16.safetensors               # ComfyUI models/clip/
+VIDEO_VAE_MODEL=ltxv_vae_bf16.safetensors             # ComfyUI models/vae/
+VIDEO_FPS=24
+COMFYUI_URL=http://127.0.0.1:8188
+```
+
+### ComfyUI 连接方式
+
+1. 安装并启动 ComfyUI（ portable 版或 `python main.py`），默认监听 `http://127.0.0.1:8188`
+2. 本项目把「workflow API JSON 模板 + 占位符」提交到 ComfyUI `POST /prompt`，轮询 `/history`，经 `/view` 取回文件
+3. 模板位于 `backend/app/services/comfyui_workflows/`：
+   - `image_workflow.json`：默认 SD1.5 文生图（占位符 `__PROMPT__` `__WIDTH__` `__HEIGHT__` `__SEED__` `__MODEL__` 等）
+   - `video_workflow.json`：默认 LTX-Video I2V（占位符 `__IMAGE__` `__UNET__` `__CLIP__` `__VAE__` `__FRAMES__` 等，需 ComfyUI 0.3.10+ 原生 CreateVideo/SaveVideo 节点）
+4. 想用别的工作流：在 ComfyUI 中开启开发者模式 → 导出 API 格式 JSON → 覆盖对应模板文件，把需要动态替换的值写成占位符即可
+5. 可在「模型设置」页点击「检查本地生成环境」验证 GPU / 显存 / ComfyUI 连通性 / 模型是否在已装列表中
+
+### 零成本方案与硬件要求（如实说明）
+
+| 环节 | 推荐方案 | 显存要求 |
+| --- | --- | --- |
+| LLM | Ollama qwen2.5:3b（已就绪） | ~3 GB |
+| 图片 | ComfyUI + SD1.5（512~768 分辨率） | ~3-4 GB，可行 |
+| 视频 | ComfyUI + LTX-Video 2B distilled（fp8 + offload） | 官方建议 8GB+；6GB 显存仅能出低分辨率/短时长，勉强可用 |
+
+> 本机为 RTX 4050 Laptop（6GB 显存）：图片生成可用；LTX-Video 视频生成属于超配运行，
+> 速度慢且可能 OOM。若无法运行，可选：A. 更轻量本地方案；B. 第三方免费额度 API；
+> C. 付费 API。不会默认绑定任何付费服务。
+
+### 未配置时的行为
+
+`IMAGE_PROVIDER` / `VIDEO_PROVIDER` 为 `none` 时，点击生成按钮会收到明确的引导提示
+（安装 ComfyUI 或配置 API），不会假装生成成功。
+
 ## PostgreSQL 容器操作
 
 ```bash
@@ -141,5 +196,4 @@ docker ps --filter name=ai-video-workflow-postgres
 
 ## 后续阶段（未实现）
 
-图片 Prompt 优化 → 图片生成 → 用户审核 → 视频生成 → 素材整理导出剪映。
-AI 模型调用统一放在 services 层，届时接入。
+多个 Shot 批量生成 → 按镜头编号整理素材 → 导出剪映。

@@ -23,5 +23,23 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0.7
 
+    # 图片生成配置：none（未配置）| comfyui
+    IMAGE_PROVIDER: str = "none"
+    IMAGE_MODEL: str = ""
+
+    # 视频生成配置：none（未配置）| comfyui
+    VIDEO_PROVIDER: str = "none"
+    VIDEO_MODEL: str = ""
+    VIDEO_CLIP_MODEL: str = ""
+    VIDEO_VAE_MODEL: str = ""
+    VIDEO_FPS: int = 24
+
+    # ComfyUI 连接地址（图片/视频 Provider 共用）
+    COMFYUI_URL: str = "http://127.0.0.1:8188"
+
+    # 生成任务轮询间隔与超时（秒）
+    GEN_POLL_INTERVAL: float = 2.0
+    GEN_TIMEOUT: float = 600.0
+
 
 settings = Settings()

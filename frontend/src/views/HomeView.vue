@@ -4,6 +4,7 @@
       <div class="card-header">
         <span>项目列表</span>
         <el-button type="primary" @click="router.push('/projects/new')">新建项目</el-button>
+        <el-button @click="router.push('/settings')">模型设置</el-button>
       </div>
     </template>
     <el-table :data="projects" v-loading="loading" empty-text="暂无项目，点击右上角新建">
