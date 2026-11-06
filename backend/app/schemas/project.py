@@ -9,6 +9,12 @@ class ProjectCreate(BaseModel):
     aspect_ratio: str = "9:16"
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    story: str | None = None
+    aspect_ratio: str | None = None
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,6 +28,7 @@ class ProjectRead(BaseModel):
 
 
 class ProjectDetail(ProjectRead):
+    story_analysis: dict | None = None
     characters: list["CharacterRead"] = []
     shots: list["ShotRead"] = []
     shot_count: int = 0

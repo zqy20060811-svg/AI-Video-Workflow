@@ -1,19 +1,22 @@
-"""LangGraph 工作流状态定义（占位）。
+"""LangGraph 工作流状态定义。
 
-后续阶段将在此定义分镜生成工作流的状态结构：
-story -> storyboard -> image_prompt -> image_gen -> video_gen -> export
+工作流：START → story_analysis → storyboard_generation → END
+（human_review 为人工确认环节，由 API /storyboard/confirm 完成，不在自动工作流内）
 """
 
 from typing import Any, TypedDict
 
 
 class WorkflowState(TypedDict, total=False):
-    """分镜生产工作流共享状态（预留结构，后续按需调整）。"""
+    """分镜生产工作流共享状态。"""
 
     project_id: int
     story: str
-    storyboard: list[dict[str, Any]]
-    image_prompts: list[str]
-    video_prompts: list[str]
-    scene_images: list[str]
-    shot_videos: list[str]
+    # 角色信息文本（名称、描述、是否已有三视图）
+    characters_info: str
+    # 故事结构化分析结果
+    story_analysis: dict[str, Any]
+    # 分镜列表（每个元素为一个 Shot 字典）
+    shots: list[dict[str, Any]]
+    # 工作流中的错误信息
+    error: str

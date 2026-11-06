@@ -17,5 +17,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     STORAGE_DIR: str = "./storage"
 
+    # LLM 配置（OpenAI 兼容 API：OpenAI / DeepSeek / Ollama / 其他兼容服务）
+    LLM_API_KEY: str = ""
+    LLM_BASE_URL: str = "https://api.openai.com/v1"
+    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_TEMPERATURE: float = 0.7
+
 
 settings = Settings()

@@ -2,7 +2,8 @@
 
 AI 短视频 / 影视分镜生产工作流（Human-in-the-loop）。
 
-**当前阶段：项目初始化 + 基础工程骨架。** 仅包含前后端基础框架、数据库连接与基础 CRUD，未接入任何真实 AI 模型。
+**当前阶段：故事 → AI 分析 → AI 分镜 → 人工修改 → 确认分镜（完整闭环已实现）。**
+尚未实现：图片生成、视频生成、剪映自动化等后续阶段。
 
 ## 技术栈
 
@@ -12,7 +13,8 @@ AI 短视频 / 影视分镜生产工作流（Human-in-the-loop）。
 | 数据库 | PostgreSQL 16（Docker 容器 `ai-video-workflow-postgres`，宿主机端口 **5436**） |
 | 前端 | Vue 3 / Vite / TypeScript / Element Plus / Vue Router / Pinia / Axios |
 | 存储 | 本地 `storage/` 目录（后续接 MinIO / OSS） |
-| 预留 | LangGraph（仅目录与依赖）、Redis（仅配置） |
+| LLM | OpenAI 兼容 API（当前本地 Ollama `qwen2.5:3b`，可无缝切换 DeepSeek / OpenAI） |
+| 工作流 | LangGraph：story_analysis → storyboard_generation → human_review（人工确认） |
 
 ## 目录结构
 
@@ -81,6 +83,19 @@ npm run dev
 | http://localhost:8000/api/docs | Swagger 文档 |
 | http://localhost:5180 | 前端首页 |
 
+## 完整工作流使用步骤
+
+```text
+1. 新建项目（/projects/new）
+2. 项目详情页上传角色三视图、填写故事梗概 → 保存故事
+3. 点击「生成分镜」→ AI 分析故事 + 生成分镜（等待 1-3 分钟）
+4. 自动跳转分镜管理页 → 查看/修改/新增/删除/排序分镜
+5. 点击「确认全部分镜」
+```
+
+项目状态：draft → story_analyzing → storyboard_generated → storyboard_reviewing → storyboard_confirmed。
+已确认的分镜再次修改会自动回到 storyboard_reviewing / draft 状态。
+
 ## 当前可用 API
 
 | 方法 | 路径 | 说明 |
@@ -88,12 +103,31 @@ npm run dev
 | GET | /api/health | 健康检查 |
 | POST | /api/projects | 创建项目（name / story / aspect_ratio） |
 | GET | /api/projects | 项目列表 |
-| GET | /api/projects/{id} | 项目详情（含角色、镜头、镜头数量） |
+| GET | /api/projects/{id} | 项目详情（含角色、镜头、故事分析） |
+| PUT | /api/projects/{id} | 编辑项目（故事梗概 / 名称 / 画幅） |
 | POST | /api/projects/{id}/characters | 创建角色，multipart 上传 front_image / side_image / back_image（Form 字段：name、description） |
 | GET | /api/projects/{id}/characters | 角色列表 |
-| GET | /api/projects/{id}/shots | 镜头列表（占位，暂无数据） |
+| POST | /api/projects/{id}/storyboard/story/analyze | AI 故事结构化分析 |
+| POST | /api/projects/{id}/storyboard/generate | AI 生成分镜（LangGraph：分析 → 分镜 → 入库） |
+| POST | /api/projects/{id}/storyboard/confirm | 确认全部分镜 |
+| GET/POST | /api/projects/{id}/shots | 镜头列表 / 手动新增镜头 |
+| GET/PUT/DELETE | /api/shots/{shot_id} | 单个镜头查询 / 修改（含调整顺序）/ 删除 |
+| POST | /api/projects/{id}/shots/reorder | 批量调整镜头顺序 |
 
 角色图片保存至 `storage/projects/{project_id}/characters/`，数据库仅存相对路径。
+
+## LLM 配置
+
+`backend/.env`：
+
+```env
+LLM_API_KEY=你的密钥
+LLM_BASE_URL=https://api.deepseek.com/v1   # 或 OpenAI / Ollama 等兼容地址
+LLM_MODEL=deepseek-chat
+```
+
+当前默认使用本机 Ollama（`http://localhost:11434/v1` + `qwen2.5:3b`）做开发测试。
+更换模型只需改这三个环境变量，业务代码不变。
 
 ## PostgreSQL 容器操作
 
@@ -107,5 +141,5 @@ docker ps --filter name=ai-video-workflow-postgres
 
 ## 后续阶段（未实现）
 
-剧情优化与分镜生成（LangGraph）→ 图片 Prompt 生成 → 图片生成 → 视频生成 → 素材整理导出剪映。
-AI 模型调用统一放入 services 层，届时接入。
+图片 Prompt 优化 → 图片生成 → 用户审核 → 视频生成 → 素材整理导出剪映。
+AI 模型调用统一放在 services 层，届时接入。
